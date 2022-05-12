@@ -1,5 +1,8 @@
 var pool = require('./connection.js')
 
+
+
+
 // pmId, deckId    (posId)
 // match has ended -- Later
 // pm is on a state that can play the card
@@ -22,6 +25,50 @@ module.exports.getPlayerDeckCard = async function (pmId,deckId) {
         return { status: 500, result: err };
     }    
 }
+
+
+module.exports.getOpponent = async function (pmId,matchId) { 
+    try {
+        let sqlOp = `select * from playermatch
+                    where pm_match_id =$1 and pm_id != $2`;
+        let res = await pool.query(sqlOp, [matchId,pmId]);
+        if (res.rows.length == 0)
+            return {status: 400, result: {msg: "That match has no opponent" }};
+        else 
+            return {status: 200, result: res.rows[0]};
+    } catch (err) {
+        console.log(err);
+        return { status: 500, result: err };
+    }    
+}
+
+
+
+module.exports.attack = async function (pmId, deckId,opDeckId) { 
+    try {
+        let res = await this.getPlayerMatchInfo(pmId);
+        if (res.status != 200) return res;
+        let player = res.result;
+        if (player.pm_state_id != 1) 
+            return {status:400, result: {msg:"Cannot play a card at this moment"}};        
+        
+        res =  await this.getPlayerDeckCard(pmId,deckId);
+        if (res.status != 200) return res;
+        let playerCard = res.result;
+        if (playerCard.deck_pos_id != 1)
+            return {status:400, result: {msg:"That card is not on the hand to be played"}};
+
+        res =  await this.getOpponent(pmId,player.mt_id);
+        if (res.status != 200) return res;
+        let opponent = res.result;
+        
+        
+
+    } catch (err) {
+        console.log(err);
+        return { status: 500, result: err };
+      }    
+  }
 
 
 module.exports.playCard = async function (pmId, deckId) { 
@@ -102,7 +149,7 @@ module.exports.getPlayerDeck = async function (pId,pmId) {
 
 module.exports.getPlayerMatchInfo = async function (pmId) { 
     try {
-        let sql = `	select pm_id, pm_state_id, pm_hp, pms_name, mt_turn, mt_finished, ply_name, ply_id  
+        let sql = `	select pm_id, pm_state_id, pm_hp, pms_name, mt_id, mt_turn, mt_finished, ply_name, ply_id  
         from  playermatch, pmstate, match, player  
         where 
           pm_player_id = ply_id and
